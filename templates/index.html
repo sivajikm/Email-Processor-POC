@@ -1,0 +1,232 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Processor POC</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .email-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        .remove-email {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            background: #f8d7da;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            text-align: center;
+            line-height: 25px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Salesforce Email Processing POC</h1>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Email Input</h5>
+            </div>
+            <div class="card-body">
+                <div id="emails-container">
+                    <div class="email-container">
+                        <div class="mb-3">
+                            <label class="form-label">Email 1</label>
+                            <textarea class="form-control email-content" rows="5" placeholder="Enter email content here..."></textarea>
+                            <span class="remove-email">×</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <button id="add-email" class="btn btn-secondary">+ Add Another Email</button>
+                <button id="process-emails" class="btn btn-primary float-end">Process Emails</button>
+            </div>
+        </div>
+        
+        <div class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Processing emails... This may take a minute.</p>
+        </div>
+        
+        <div class="results">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Email Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <pre id="email-analysis" class="bg-light p-3 rounded"></pre>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Query Classification</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Primary Query Type:</label>
+                                <div id="primary-query-type" class="bg-light p-2 rounded"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Secondary Query Type:</label>
+                                <div id="secondary-query-type" class="bg-light p-2 rounded"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Confidence:</label>
+                        <div id="confidence" class="bg-light p-2 rounded"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reasoning:</label>
+                        <div id="reasoning" class="bg-light p-2 rounded"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Email Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div id="email-summary" class="bg-light p-3 rounded"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add email button
+            document.getElementById('add-email').addEventListener('click', function() {
+                const emailsContainer = document.getElementById('emails-container');
+                const emailCount = emailsContainer.children.length + 1;
+                
+                const newEmailDiv = document.createElement('div');
+                newEmailDiv.className = 'email-container';
+                newEmailDiv.innerHTML = `
+                    <div class="mb-3">
+                        <label class="form-label">Email ${emailCount}</label>
+                        <textarea class="form-control email-content" rows="5" placeholder="Enter email content here..."></textarea>
+                        <span class="remove-email">×</span>
+                    </div>
+                `;
+                
+                emailsContainer.appendChild(newEmailDiv);
+                
+                // Add event listener to the new remove button
+                const removeButton = newEmailDiv.querySelector('.remove-email');
+                removeButton.addEventListener('click', function() {
+                    if (emailsContainer.children.length > 1) {
+                        this.parentElement.parentElement.remove();
+                        // Update labels
+                        const emails = emailsContainer.querySelectorAll('.email-container');
+                        emails.forEach((email, index) => {
+                            email.querySelector('label').textContent = `Email ${index + 1}`;
+                        });
+                    }
+                });
+            });
+            
+            // Add event listeners to initial remove button
+            document.querySelector('.remove-email').addEventListener('click', function() {
+                const emailsContainer = document.getElementById('emails-container');
+                if (emailsContainer.children.length > 1) {
+                    this.parentElement.parentElement.remove();
+                    // Update labels
+                    const emails = emailsContainer.querySelectorAll('.email-container');
+                    emails.forEach((email, index) => {
+                        email.querySelector('label').textContent = `Email ${index + 1}`;
+                    });
+                }
+            });
+            
+            // Process emails button
+            document.getElementById('process-emails').addEventListener('click', function() {
+                const emailTextareas = document.querySelectorAll('.email-content');
+                const emails = [];
+                
+                emailTextareas.forEach(textarea => {
+                    if (textarea.value.trim() !== '') {
+                        emails.push(textarea.value.trim());
+                    }
+                });
+                
+                if (emails.length === 0) {
+                    alert('Please enter at least one email.');
+                    return;
+                }
+                
+                // Show loading spinner
+                document.querySelector('.loading').style.display = 'block';
+                document.querySelector('.results').style.display = 'none';
+                
+                // Make API request
+                fetch('/process_emails', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ emails: emails })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loading spinner
+                    document.querySelector('.loading').style.display = 'none';
+                    
+                    if (data.success) {
+                        // Populate results
+                        document.getElementById('email-analysis').textContent = data.email_analysis;
+                        
+                        if (typeof data.query_classification === 'object') {
+                            document.getElementById('primary-query-type').textContent = data.query_classification.primary_query_type || 'Not identified';
+                            document.getElementById('secondary-query-type').textContent = data.query_classification.secondary_query_type || 'Not identified';
+                            document.getElementById('confidence').textContent = data.query_classification.confidence || 'Not specified';
+                            document.getElementById('reasoning').textContent = data.query_classification.reasoning || 'Not provided';
+                        } else {
+                            document.getElementById('primary-query-type').textContent = 'Could not parse';
+                            document.getElementById('secondary-query-type').textContent = 'Could not parse';
+                            document.getElementById('confidence').textContent = 'N/A';
+                            document.getElementById('reasoning').textContent = data.query_classification || 'Not available';
+                        }
+                        
+                        document.getElementById('email-summary').textContent = data.summary;
+                        
+                        // Show results
+                        document.querySelector('.results').style.display = 'block';
+                    } else {
+                        alert('Error processing emails: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    document.querySelector('.loading').style.display = 'none';
+                    alert('Error: ' + error.message);
+                });
+            });
+        });
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

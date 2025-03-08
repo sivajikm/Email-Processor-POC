@@ -28,8 +28,8 @@ This application simulates a workflow where:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/email-processor-poc.git
-cd email-processor-poc
+git clone https://github.com/sivajikm/Email-Processor-POC.git
+cd Email-Processor-POC
 ```
 
 ### 2. Create and activate a virtual environment
